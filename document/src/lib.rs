@@ -209,3 +209,75 @@ impl Into<Vec<Vec<u8>>> for Field {
         }
     }
 }
+
+pub struct Hash {
+    bytes: Vec<u8>,
+}
+
+impl std::fmt::LowerHex for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.bytes.iter() {
+            f.write_fmt(format_args!("{:02x}", byte))?;
+        }
+        Ok(())
+    }
+}
+
+impl Field {
+    fn key_prefix(&self) -> u8 {
+        match self {
+            Field::Map(_) => 'm' as u8,
+            Field::String(_) => 's' as u8,
+            Field::Int64(_) => 'i' as u8,
+            Field::Uint64(_) => 'u' as u8,
+            Field::Bool(_) => 'b' as u8,
+            Field::Bytes(_) => 'x' as u8,
+            Field::Array(_) => 'a' as u8,
+        }
+    }
+    pub fn hash(&self) -> Hash {
+        let mut hasher = Sha256::new();
+        match self {
+            Field::Map(doc) => {
+                for (key, value) in doc {
+                    // TODO: Does the key prefix need to be static/const?
+                    hasher.update(['s' as u8]);
+                    hasher.update(key.as_bytes());
+                    hasher.update([value.key_prefix()]);
+                    hasher.update(value.hash().bytes.as_slice());
+                }
+            }
+            Field::String(s) => {
+                hasher.update([self.key_prefix()]);
+                hasher.update(s.as_bytes());
+            }
+            Field::Int64(n) => {
+                hasher.update([self.key_prefix()]);
+                hasher.update(&n.to_be_bytes());
+            }
+            Field::Uint64(n) => {
+                hasher.update([self.key_prefix()]);
+                hasher.update(&n.to_be_bytes());
+            }
+            Field::Bool(b) => {
+                hasher.update([self.key_prefix()]);
+                hasher.update([*b as u8]);
+            }
+            Field::Bytes(b) => {
+                hasher.update([self.key_prefix()]);
+                hasher.update(b.as_slice());
+            }
+            Field::Array(arr) => {
+                hasher.update([self.key_prefix()]);
+                for value in arr {
+                    // TODO: Do individual array elements need a prefix?
+                    hasher.update(value.hash().bytes.as_slice());
+                }
+            }
+        }
+        Hash {
+            bytes: hasher.finalize().to_vec(),
+        }
+    }
+}
+
