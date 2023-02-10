@@ -281,3 +281,81 @@ impl Field {
     }
 }
 
+pub fn from_json(s: &str) -> Result<Field, serde_json::Error> {
+    let value: serde_json::Value = serde_json::from_str(s)?;
+    Ok(from_serde_value(value))
+}
+
+fn from_serde_value(value: serde_json::Value) -> Field {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut btreemap = BTreeMap::new();
+            for (key, value) in map {
+                btreemap.insert(key, from_serde_value(value));
+            }
+            Field::Map(btreemap)
+        }
+        serde_json::Value::String(s) => Field::String(s),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Field::Int64(i)
+            } else if let Some(u) = n.as_u64() {
+                Field::Uint64(u)
+            } else {
+                panic!("Number is not an integer or unsigned integer")
+            }
+        }
+        serde_json::Value::Bool(b) => Field::Bool(b),
+        serde_json::Value::Array(a) => Field::Array(a.into_iter().map(from_serde_value).collect()),
+        serde_json::Value::Null => panic!("Null values are not supported"),
+    }
+}
+
+pub fn to_json(field: &Field) -> Result<String, serde_json::Error> {
+    let value = to_serde_value(field);
+    serde_json::to_string(&value)
+}
+
+fn to_serde_value(field: &Field) -> serde_json::Value {
+    match field {
+        Field::Map(map) => {
+            let mut object = serde_json::Map::new();
+            for (key, value) in map {
+                object.insert(key.clone(), to_serde_value(value));
+            }
+            serde_json::Value::Object(object)
+        }
+        Field::String(s) => serde_json::Value::String(s.clone()),
+        Field::Int64(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+        Field::Uint64(u) => serde_json::Value::Number(serde_json::Number::from(*u)),
+        Field::Bool(b) => serde_json::Value::Bool(*b),
+        Field::Bytes(bytes) => serde_json::Value::String(base64::encode(bytes)),
+        Field::Array(a) => {
+            serde_json::Value::Array(a.iter().map(to_serde_value).collect::<Vec<_>>())
+        }
+    }
+}
+
+// test from_json
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_json() {
+        let f_document = from_json(r#"{"a": 1, "b": "Hello"}"#).unwrap();
+        println!("{:?}", f_document);
+        println!("{:x}", f_document.hash());
+
+        // Encode document to JSON
+        let f_document_json_result = to_json(&f_document);
+        match f_document_json_result {
+            Ok(json) => println!("{}", json),
+            Err(e) => println!("Error: {}", e),
+        }
+
+        // Hash document
+        println!("{:x}", f_document.hash());
+    }
+}
