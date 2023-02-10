@@ -1,0 +1,18 @@
+[package]
+name = "document"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base64 = "0.21.0"
+derive_more = "0.99.17"
+hex = "0.4.3"
+macro-vis = "0.1.1"
+quote = "1.0.23"
+rand = "0.8.5"
+rand_core = "0.5" # https://github.com/dalek-cryptography/x25519-dalek/issues/86
+serde_json = "1.0.93"
+sha2 = "0.10.6"
+syn = "1.0.107"
+x25519-dalek = "1.2.0"
+
